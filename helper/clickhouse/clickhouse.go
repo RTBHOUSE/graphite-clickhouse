@@ -66,6 +66,8 @@ func HandleError(w http.ResponseWriter, err error) {
 			// distributed table configuration error
 			// clickhouse response status 500: Code: 170, e.displayText() = DB::Exception: Requested cluster 'cluster' not found
 			http.Error(w, "Storage configuration error", http.StatusServiceUnavailable)
+		} else if !ok {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	} else {
 		//logger.Debug("query", zap.Error(err))
