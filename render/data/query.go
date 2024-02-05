@@ -32,9 +32,9 @@ const queryAggregated = `WITH anyResample(%[1]d, %[2]d, %[3]d)(toUInt32(intDiv(T
 SELECT Path,
  arrayFilter(m->m!=0, mask) AS times,
  arrayFilter((v,m)->m!=0, %[4]sResample(%[1]d, %[2]d, %[3]d)(Value, Time), mask) AS values
-FROM %[5]s
-%[6]s
+FROM %[5]s %[6]s
 %[7]s
+%[8]s
 GROUP BY Path
 FORMAT RowBinary`
 
@@ -66,6 +66,8 @@ type conditions struct {
 	*Targets
 	// aggregated shows is it request with ClickHouse aggregation or not
 	aggregated bool
+	// should the FINAL modifier be used for internal aggregation
+	aggregatedFinal bool
 	// step is used in requests for proper until/from calculation. It's max(steps) for non-aggregated
 	// requests and LCM(steps) for aggregated requests
 	step int64
@@ -160,6 +162,7 @@ func (q *query) getDataPoints(ctx context.Context, cond *conditions) error {
 	for agg, extTableBody := range cond.extDataBodies {
 		extData := q.metricsListExtData(extTableBody)
 		query := cond.generateQuery(agg)
+		logger.With(zap.String("query", query)).With(zap.Any("extData", extData.Tables)).Debug("reader")
 		data.wg.Add(1)
 		go func() {
 			defer data.wg.Done()
@@ -361,6 +364,9 @@ func (c *conditions) setWhere() {
 	wr := where.New()
 	wr.And(where.InTable("Path", extTableName))
 	wr.And(where.TimestampBetween("Time", c.from, c.until))
+	// This is to workaround a <Not found column Timestamp in block> error
+	// when using Final clause without explicitly reading the Timestamp column.
+	wr.And("Timestamp")
 	c.where = wr.SQL()
 }
 
@@ -372,10 +378,15 @@ func (c *conditions) generateQuery(agg string) string {
 }
 
 func (c *conditions) generateQueryaAggregated(agg string) string {
+	finalStr := ""
+	if c.aggregatedFinal {
+		finalStr = "FINAL"
+	}
 	return fmt.Sprintf(
 		queryAggregated,
 		c.from, c.until, c.step, agg,
-		c.pointsTable, c.prewhere, c.where,
+		c.pointsTable, finalStr,
+		c.prewhere, c.where,
 	)
 }
 

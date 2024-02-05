@@ -241,7 +241,8 @@ type ClickHouse struct {
 	RollupConfLegacy string `toml:"rollup-conf"              json:"-"                                                                                                                                                                 commented:"true"`
 	MaxDataPoints    int    `toml:"max-data-points"          json:"max-data-points"          comment:"max points per metric when internal-aggregation=true"`
 	// InternalAggregation controls if ClickHouse itself or graphite-clickhouse aggregates points to proper retention
-	InternalAggregation bool `toml:"internal-aggregation"     json:"internal-aggregation"     comment:"ClickHouse-side aggregation, see doc/aggregation.md"`
+	InternalAggregation      bool `toml:"internal-aggregation"     json:"internal-aggregation"     comment:"ClickHouse-side aggregation, see doc/aggregation.md"`
+	InternalAggregationFinal bool `toml:"internal-aggregation-final" json:"internal-aggregation-final" comment:"Internal aggregation query will use FINAL modifier, see doc/aggregation.md"`
 
 	TLSParams config.TLS  `toml:"tls"                      json:"tls"                      comment:"mTLS HTTPS configuration for connecting to clickhouse server"                                                                         commented:"true"`
 	TLSConfig *tls.Config `toml:"-"                        json:"-"`
@@ -371,24 +372,25 @@ func New() *Config {
 			},
 		},
 		ClickHouse: ClickHouse{
-			URL:                  "http://localhost:8123?cancel_http_readonly_queries_on_client_close=1",
-			DataTimeout:          time.Minute,
-			IndexTable:           "graphite_index",
-			IndexUseDaily:        true,
-			TaggedUseDaily:       true,
-			IndexReverse:         "auto",
-			IndexReverses:        IndexReverses{},
-			IndexTimeout:         time.Minute,
-			TaggedTable:          "graphite_tagged",
-			TaggedAutocompleDays: 7,
-			ExtraPrefix:          "",
-			ConnectTimeout:       time.Second,
-			DataTableLegacy:      "",
-			RollupConfLegacy:     "auto",
-			MaxDataPoints:        1048576,
-			InternalAggregation:  true,
-			FindLimiter:          limiter.NoopLimiter{},
-			TagsLimiter:          limiter.NoopLimiter{},
+			URL:                      "http://localhost:8123?cancel_http_readonly_queries_on_client_close=1",
+			DataTimeout:              time.Minute,
+			IndexTable:               "graphite_index",
+			IndexUseDaily:            true,
+			TaggedUseDaily:           true,
+			IndexReverse:             "auto",
+			IndexReverses:            IndexReverses{},
+			IndexTimeout:             time.Minute,
+			TaggedTable:              "graphite_tagged",
+			TaggedAutocompleDays:     7,
+			ExtraPrefix:              "",
+			ConnectTimeout:           time.Second,
+			DataTableLegacy:          "",
+			RollupConfLegacy:         "auto",
+			MaxDataPoints:            1048576,
+			InternalAggregation:      true,
+			InternalAggregationFinal: false,
+			FindLimiter:              limiter.NoopLimiter{},
+			TagsLimiter:              limiter.NoopLimiter{},
 		},
 		Tags: Tags{
 			Threads:     1,
