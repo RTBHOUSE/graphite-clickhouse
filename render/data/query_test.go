@@ -416,9 +416,10 @@ func TestGenerateQuery(t *testing.T) {
 		agg   string
 	}
 	tests := []struct {
-		in           in
-		aggregated   string
-		unaggregated string
+		in              in
+		aggregated      string
+		aggregatedFinal string
+		unaggregated    string
 	}{
 		{
 			in: in{1668124800, 1668325322, 1, "avg"},
@@ -428,6 +429,14 @@ func TestGenerateQuery(t *testing.T) {
 				"FROM graphite.table\n" +
 				"PREWHERE Date >= '" + date.FromTimestampToDaysFormat(1668124800) + "' AND Date <= '" + date.UntilTimestampToDaysFormat(1668325322) + "'\n" +
 				"WHERE (Path in metrics_list) AND (Time >= 1668124800 AND Time <= 1668325322)\n" +
+				"GROUP BY Path\n" +
+				"FORMAT RowBinary"),
+			aggregatedFinal: ("WITH anyResample(1668124800, 1668325322, 1)(toUInt32(intDiv(Time, 1)*1), Time) AS mask\n" +
+				"SELECT Path,\n arrayFilter(m->m!=0, mask) AS times,\n" +
+				" arrayFilter((v,m)->m!=0, avgResample(1668124800, 1668325322, 1)(Value, Time), mask) AS values\n" +
+				"FROM graphite.table FINAL\n" +
+				"PREWHERE Date >= '" + date.FromTimestampToDaysFormat(1668124800) + "' AND Date <= '" + date.UntilTimestampToDaysFormat(1668325322) + "'\n" +
+				"WHERE ((Path in metrics_list) AND (Time >= 1668124800 AND Time <= 1668325322)) AND (Timestamp)\n" +
 				"GROUP BY Path\n" +
 				"FORMAT RowBinary"),
 			unaggregated: ("SELECT Path, groupArray(Time), groupArray(Value), groupArray(Timestamp)\n" +
@@ -445,6 +454,14 @@ func TestGenerateQuery(t *testing.T) {
 				"FROM graphite.table\n" +
 				"PREWHERE Date >= '" + date.FromTimestampToDaysFormat(11111) + "' AND Date <= '" + date.FromTimestampToDaysFormat(33333) + "'\n" +
 				"WHERE (Path in metrics_list) AND (Time >= 11111 AND Time <= 33333)\n" +
+				"GROUP BY Path\n" +
+				"FORMAT RowBinary"),
+			aggregatedFinal: ("WITH anyResample(11111, 33333, 11111)(toUInt32(intDiv(Time, 11111)*11111), Time) AS mask\n" +
+				"SELECT Path,\n arrayFilter(m->m!=0, mask) AS times,\n" +
+				" arrayFilter((v,m)->m!=0, minResample(11111, 33333, 11111)(Value, Time), mask) AS values\n" +
+				"FROM graphite.table FINAL\n" +
+				"PREWHERE Date >= '" + date.FromTimestampToDaysFormat(11111) + "' AND Date <= '" + date.FromTimestampToDaysFormat(33333) + "'\n" +
+				"WHERE ((Path in metrics_list) AND (Time >= 11111 AND Time <= 33333)) AND (Timestamp)\n" +
 				"GROUP BY Path\n" +
 				"FORMAT RowBinary"),
 			unaggregated: ("SELECT Path, groupArray(Time), groupArray(Value), groupArray(Timestamp)\n" +
@@ -466,11 +483,18 @@ func TestGenerateQuery(t *testing.T) {
 			cond.pointsTable = table
 			cond.setPrewhere()
 			cond.setWhere()
+
 			unaggQuery := cond.generateQuery(test.in.agg)
 			assert.Equal(t, test.unaggregated, unaggQuery)
+
 			cond.aggregated = true
 			aggQuery := cond.generateQuery(test.in.agg)
 			assert.Equal(t, test.aggregated, aggQuery)
+
+			cond.aggregatedFinal = true
+			cond.setWhere()
+			finalAggQuery := cond.generateQuery(test.in.agg)
+			assert.Equal(t, test.aggregatedFinal, finalAggQuery)
 		})
 	}
 }

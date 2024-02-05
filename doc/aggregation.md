@@ -136,6 +136,18 @@ FROM data WHERE ... GROUP BY Path
 
 - Query improved a bit: dropped the use of `-OrNull` improved compatibility with different CH versions.
 
+### Fetching data: February 2024 ([##](https://github.com/lomik/graphite-clickhouse/pull/#))
+
+```sql
+WITH anyResample($from, $until, $step)(toUInt32(intDiv(Time, $step)*$step), Time) AS mask
+SELECT Path,
+ arrayFilter(m->m!=0, mask) AS times,
+ arrayFilter((v,m)->m!=0, ${func}Resample($from, $until, $step)(Value, Time), mask) AS values
+FROM data [FINAL] WHERE ... GROUP BY Path
+```
+
+- Added option to make the fetching query FINAL
+
 ## Fetching data: concepts' difference
 
 For small requests, the difference is not so big, but for the heavy one the amount of data was decreased up to 100 times:

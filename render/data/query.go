@@ -32,9 +32,9 @@ const queryAggregated = `WITH anyResample(%[1]d, %[2]d, %[3]d)(toUInt32(intDiv(T
 SELECT Path,
  arrayFilter(m->m!=0, mask) AS times,
  arrayFilter((v,m)->m!=0, %[4]sResample(%[1]d, %[2]d, %[3]d)(Value, Time), mask) AS values
-FROM %[5]s %[6]s
+FROM %[5]s
+%[6]s
 %[7]s
-%[8]s
 GROUP BY Path
 FORMAT RowBinary`
 
@@ -366,7 +366,9 @@ func (c *conditions) setWhere() {
 	wr.And(where.TimestampBetween("Time", c.from, c.until))
 	// This is to workaround a <Not found column Timestamp in block> error
 	// when using Final clause without explicitly reading the Timestamp column.
-	wr.And("Timestamp")
+	if c.aggregatedFinal {
+		wr.And("Timestamp")
+	}
 	c.where = wr.SQL()
 }
 
@@ -378,15 +380,15 @@ func (c *conditions) generateQuery(agg string) string {
 }
 
 func (c *conditions) generateQueryaAggregated(agg string) string {
-	finalStr := ""
+	pointsTable := c.pointsTable
 	if c.aggregatedFinal {
-		finalStr = "FINAL"
+		pointsTable = fmt.Sprintf("%s %s", c.pointsTable, "FINAL")
 	}
+
 	return fmt.Sprintf(
 		queryAggregated,
 		c.from, c.until, c.step, agg,
-		c.pointsTable, finalStr,
-		c.prewhere, c.where,
+		pointsTable, c.prewhere, c.where,
 	)
 }
 
